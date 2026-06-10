@@ -202,21 +202,30 @@
   <div class="screen" id="s-scan">
     <button class="btn-back" onclick="stopScan(); goScreen('s-home')">← 홈으로</button>
     <div class="page-title">📷 바코드 스캔</div>
-    <div class="page-sub">우유 뒷면 바코드를 카메라에 보여주세요</div>
     <div class="info-box">목록에 없는 우유도 OK — Open Food Facts DB에서 자동으로 영양정보를 가져와요</div>
-    <div class="scan-box">
-      <div id="reader"></div>
+
+    <!-- 직접 입력 항상 표시 -->
+    <div class="card" style="margin-bottom:14px;">
+      <h3 style="margin-bottom:10px;">🔢 바코드 번호 직접 입력</h3>
+      <div class="scan-input-row">
+        <input type="text" id="barcode-input" placeholder="예: 8801068200019" inputmode="numeric"
+          onkeydown="if(event.key==='Enter') manualLookup()">
+        <button class="btn btn-primary btn-sm" onclick="manualLookup()">조회</button>
+      </div>
     </div>
-    <div style="margin-bottom:10px; text-align:center; font-size:13px; color:var(--sub);">또는 바코드 번호를 직접 입력</div>
-    <div class="scan-input-row mb12">
-      <input type="text" id="barcode-input" placeholder="예: 8801068200019" inputmode="numeric">
-      <button class="btn btn-primary btn-sm" onclick="manualLookup()">조회</button>
-    </div>
+
     <div id="scan-loading" style="display:none;">
       <div class="loading"><div class="spinner"></div>영양정보 조회 중...</div>
     </div>
     <div id="scan-error" style="display:none;">
-      <div class="warn-box">❌ 제품을 찾을 수 없어요. 바코드 번호를 다시 확인하거나 다른 제품을 스캔해보세요.</div>
+      <div class="warn-box">❌ 제품을 찾을 수 없어요. 바코드 번호를 다시 확인해보세요.</div>
+    </div>
+
+    <!-- 카메라는 버튼으로 열기 -->
+    <button class="btn btn-outline" onclick="toggleCamera()" id="camera-toggle-btn" style="margin-bottom:10px;">📷 카메라로 스캔하기</button>
+    <div id="camera-section" style="display:none;">
+      <div class="page-sub" style="margin-bottom:8px;">우유 뒷면 바코드를 카메라에 보여주세요</div>
+      <div class="scan-box"><div id="reader"></div></div>
     </div>
   </div>
 
@@ -390,13 +399,33 @@ function goBack() {
 let scanner = null;
 let scanning = false;
 
+let cameraOpen = false;
+
 async function goScanScreen() {
   await stopScan();
+  cameraOpen = false;
   document.getElementById('scan-error').style.display = 'none';
   document.getElementById('scan-loading').style.display = 'none';
   document.getElementById('barcode-input').value = '';
+  document.getElementById('camera-section').style.display = 'none';
+  document.getElementById('camera-toggle-btn').textContent = '📷 카메라로 스캔하기';
   goScreen('s-scan');
-  startScan();
+}
+
+async function toggleCamera() {
+  const sec = document.getElementById('camera-section');
+  const btn = document.getElementById('camera-toggle-btn');
+  if (!cameraOpen) {
+    sec.style.display = 'block';
+    btn.textContent = '📷 카메라 닫기';
+    cameraOpen = true;
+    startScan();
+  } else {
+    sec.style.display = 'none';
+    btn.textContent = '📷 카메라로 스캔하기';
+    cameraOpen = false;
+    await stopScan();
+  }
 }
 
 async function startScan() {
@@ -455,25 +484,46 @@ async function lookupBarcode(code) {
 
     const p = data.product;
     const n = p.nutriments || {};
-    // 항상 100ml(100g) 기준으로 정규화
+
+    // 제품 용량(ml) 파악
+    let productMl = 0;
+    const qtyStr = (p.quantity || p.product_quantity || '').toString().toLowerCase().replace(/,/g, '.');
+    const qtyMatch = qtyStr.match(/([\d.]+)\s*(l|ml)/);
+    if (qtyMatch) {
+      productMl = parseFloat(qtyMatch[1]) * (qtyMatch[2] === 'l' ? 1000 : 1);
+    }
     const servingMl = parseFloat(p.serving_quantity) || 0;
-    const servingUnit = (p.serving_quantity_unit || '').toLowerCase();
-    // 100g 기준 값이 없고 serving 기준 값만 있을 때 100ml로 환산
-    function per100(key100g, keyServing) {
-      if (n[key100g]) return n[key100g];
-      if (n[keyServing] && servingMl > 0 && (servingUnit === 'ml' || servingUnit === 'g' || servingUnit === '')) {
-        return n[keyServing] / servingMl * 100;
-      }
+
+    // 항상 100ml 기준으로 정규화
+    // Open Food Facts DB에 _100g 키가 있어도 실제론 serving 기준으로 잘못 등록된 경우가 많음
+    // → serving 값을 1순위로 사용해서 100ml로 환산
+    // → serving 없으면 _100g 키 사용
+    // → 둘 다 없으면 전체용량으로 환산
+    function per100(baseKey) {
+      const vSrv  = n[baseKey + '_serving'];
+      const v100  = n[baseKey + '_100g'];
+      const vRaw  = n[baseKey];
+
+      // 1순위: serving 기준 → 100ml로 환산 (가장 신뢰할 수 있음)
+      if (vSrv != null && vSrv !== '' && servingMl > 0)
+        return parseFloat(vSrv) / servingMl * 100;
+      // 2순위: _100g 키 (올바르게 등록된 제품)
+      if (v100 != null && v100 !== '')
+        return parseFloat(v100);
+      // 3순위: 전체용량 기준 → 100ml로 환산
+      if (vRaw != null && vRaw !== '' && productMl > 0)
+        return parseFloat(vRaw) / productMl * 100;
       return 0;
     }
+
     const milk = {
       id: 'api_' + code,
       name: p.product_name_ko || p.product_name || '알 수 없는 제품',
-      cal:     Math.round(per100('energy-kcal_100g', 'energy-kcal_serving')),
-      sugar:   parseFloat(per100('sugars_100g', 'sugars_serving').toFixed(1)),
-      fat:     parseFloat(per100('saturated-fat_100g', 'saturated-fat_serving').toFixed(1)),
-      protein: parseFloat(per100('proteins_100g', 'proteins_serving').toFixed(1)),
-      calcium: Math.round(per100('calcium_100g', 'calcium_serving') * 1000),
+      cal:     Math.round(per100('energy-kcal')),
+      sugar:   parseFloat(per100('sugars').toFixed(1)),
+      fat:     parseFloat(per100('saturated-fat').toFixed(1)),
+      protein: parseFloat(per100('proteins').toFixed(1)),
+      calcium: Math.round(per100('calcium') * 1000),
       lacto:   false,
       price:   0,
     };
