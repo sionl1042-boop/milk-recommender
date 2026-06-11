@@ -260,17 +260,17 @@
 <script>
 // ── DB ──────────────────────────────────────────────
 const DB = [
-  { id:'seoulna',   name:'서울우유 나100%',         cal:70,   sugar:5,   fat:2.5, protein:3,   calcium:100, lacto:false, price:1630 },
-  { id:'namyang',   name:'남양 맛있는우유 GT',        cal:65,   sugar:4.5, fat:2.3, protein:3,   calcium:100, lacto:false, price:1620 },
-  { id:'maeil',     name:'매일우유',                 cal:65,   sugar:5,   fat:2.3, protein:3,   calcium:100, lacto:false, price:1590 },
-  { id:'lowfat',    name:'나100% 저지방',             cal:40,   sugar:5,   fat:0.6, protein:3,   calcium:100, lacto:false, price:1610 },
-  { id:'comfort',   name:'내 속이 편안한 우유',        cal:65,   sugar:3.5, fat:2.5, protein:3,   calcium:100, lacto:true,  price:1715 },
-  { id:'nonfat',    name:'서울우유 무지방',            cal:30,   sugar:5,   fat:0,   protein:3,   calcium:100, lacto:false, price:1735 },
-  { id:'hipro',     name:'고단백저지방 서울우유',      cal:50,   sugar:5,   fat:0.6, protein:5.5, calcium:180, lacto:false, price:1805 },
-  { id:'sokpyun',   name:'속편한우유 저지방',          cal:40,   sugar:5,   fat:0.6, protein:3,   calcium:100, lacto:true,  price:1655 },
-  { id:'brown',     name:'브라운 저지밀크',            cal:80,   sugar:5,   fat:3.3, protein:4,   calcium:140, lacto:false, price:2605 },
-  { id:'calcium',   name:'뼈에 쏙쏙 고칼슘우유',      cal:67.5, sugar:5,   fat:2.5, protein:3,   calcium:225, lacto:false, price:1580 },
-  { id:'digest',    name:'소화가 잘되는 우유 단백질',  cal:55,   sugar:4.5, fat:1.3, protein:4.5, calcium:135, lacto:true,  price:2085 },
+  { id:'seoulna',   name:'서울우유 나100%',         cal:70,   sugar:5,   fat:2.5, protein:3,   calcium:100, lacto:false, price:1630, barcodes:[] },
+  { id:'namyang',   name:'남양 맛있는우유 GT',        cal:65,   sugar:4.5, fat:2.3, protein:3,   calcium:100, lacto:false, price:1620, barcodes:[] },
+  { id:'maeil',     name:'매일우유',                 cal:65,   sugar:5,   fat:2.3, protein:3,   calcium:100, lacto:false, price:1590, barcodes:['8801121101582'] },
+  { id:'lowfat',    name:'나100% 저지방',             cal:40,   sugar:5,   fat:0.6, protein:3,   calcium:100, lacto:false, price:1610, barcodes:[] },
+  { id:'comfort',   name:'내 속이 편안한 우유',        cal:65,   sugar:3.5, fat:2.5, protein:3,   calcium:100, lacto:true,  price:1715, barcodes:[] },
+  { id:'nonfat',    name:'서울우유 무지방',            cal:30,   sugar:5,   fat:0,   protein:3,   calcium:100, lacto:false, price:1735, barcodes:[] },
+  { id:'hipro',     name:'고단백저지방 서울우유',      cal:50,   sugar:5,   fat:0.6, protein:5.5, calcium:180, lacto:false, price:1805, barcodes:[] },
+  { id:'sokpyun',   name:'속편한우유 저지방',          cal:40,   sugar:5,   fat:0.6, protein:3,   calcium:100, lacto:true,  price:1655, barcodes:[] },
+  { id:'brown',     name:'브라운 저지밀크',            cal:80,   sugar:5,   fat:3.3, protein:4,   calcium:140, lacto:false, price:2605, barcodes:[] },
+  { id:'calcium',   name:'뼈에 쏙쏙 고칼슘우유',      cal:67.5, sugar:5,   fat:2.5, protein:3,   calcium:225, lacto:false, price:1580, barcodes:[] },
+  { id:'digest',    name:'소화가 잘되는 우유 단백질',  cal:55,   sugar:4.5, fat:1.3, protein:4.5, calcium:135, lacto:true,  price:2085, barcodes:[] },
 ];
 
 // ── PREFS ──────────────────────────────────────────
@@ -469,6 +469,15 @@ function manualLookup() {
 async function lookupBarcode(code) {
   document.getElementById('scan-error').style.display = 'none';
   document.getElementById('scan-loading').style.display = 'block';
+
+  // 1) 로컬 DB에서 바코드 먼저 확인 (정확한 데이터 우선)
+  const localMatch = DB.find(m => m.barcodes && m.barcodes.includes(code));
+  if (localMatch) {
+    document.getElementById('scan-loading').style.display = 'none';
+    showScanResult(localMatch, false, parseInt(document.getElementById('pw').value));
+    return;
+  }
+
 
   // 1) 로컬 DB에서 먼저 확인 (향후 바코드 필드 추가 가능)
   // 2) Open Food Facts API 조회
