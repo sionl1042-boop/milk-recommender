@@ -552,7 +552,7 @@ function showScanResult(milk, fromApi, pw) {
 
   document.getElementById('sr-title').textContent = milk.name;
   document.getElementById('sr-source').innerHTML = fromApi
-    ? '<div class="info-box">☁️ Open Food Facts DB에서 실시간으로 가져온 영양 정보예요 · 모든 수치는 <strong>100ml 기준</strong>이에요</div>'
+    ? '<div class="info-box">☁️ Open Food Facts DB에서 실시간으로 가져온 영양 정보예요 · 100ml 기준이 아닐 수 있어요</div>'
     : '<div class="info-box" style="background:var(--bg); border-color:var(--border); color:var(--sub);">📊 모든 수치는 <strong>100ml 기준</strong>이에요</div>';
 
   // 점수
